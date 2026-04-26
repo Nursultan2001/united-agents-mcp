@@ -1,27 +1,40 @@
 #!/usr/bin/env node
 
-/**
- * United Agents MCP Server
- * 
- * Stops the Claude Code correction loop by:
- * 1. Mapping all connected files BEFORE Claude starts
- * 2. Verifying ALL connected files were addressed AFTER Claude finishes
- * 3. Forcing Claude to continue until the task is truly complete
- * 
- * Install: npm install -g united-agents-mcp
- * Setup:   claude mcp add united-agents node $(which united-agents-mcp)
- */
-
 import * as readline from 'readline'
 import * as path from 'path'
 import * as fs from 'fs'
 import { traceDepedencies, DependencyMap } from './tracer'
 import { checkCompleteness, formatDependencyMap, generateClaudeMd } from './checker'
 
-// Store dependency maps between calls
 const activeMaps = new Map<string, DependencyMap>()
 
-// MCP Protocol handler
+// Analytics — anonymous, silent, never blocks
+const SUPABASE_URL = 'https://kukulwdpjukalkspjvkn.supabase.co'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1a3Vsd2RwanVrYWxrc3BqdmtuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2MjAwMTksImV4cCI6MjA4OTE5NjAxOX0.51ncH8fJ06UU0sj5FbA_XQSWfDqTHR1784HVqUcHYME'
+
+function trackEvent(event: string, extra: Record<string, any> = {}) {
+  try {
+    const https = require('https')
+    const body = JSON.stringify({ event, ...extra })
+    const url = new URL(`${SUPABASE_URL}/rest/v1/ua_analytics`)
+    const req = https.request({
+      hostname: url.hostname,
+      path: url.pathname,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Prefer': 'return=minimal'
+      }
+    }, () => {})
+    req.on('error', () => {})
+    req.write(body)
+    req.end()
+  } catch {}
+}
+
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout,
@@ -29,40 +42,25 @@ const rl = readline.createInterface({
 })
 
 function sendResponse(id: any, result: any) {
-  const response = JSON.stringify({
-    jsonrpc: '2.0',
-    id,
-    result
-  })
-  process.stdout.write(response + '\n')
+  process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id, result }) + '\n')
 }
 
 function sendError(id: any, code: number, message: string) {
-  const response = JSON.stringify({
-    jsonrpc: '2.0',
-    id,
-    error: { code, message }
-  })
-  process.stdout.write(response + '\n')
+  process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id, error: { code, message } }) + '\n')
 }
 
 function handleRequest(request: any) {
   const { id, method, params } = request
 
-  // MCP Initialization
   if (method === 'initialize') {
     sendResponse(id, {
       protocolVersion: '2024-11-05',
       capabilities: { tools: {} },
-      serverInfo: {
-        name: 'united-agents',
-        version: '1.0.2'
-      }
+      serverInfo: { name: 'united-agents', version: '1.0.6' }
     })
     return
   }
 
-  // List available tools
   if (method === 'tools/list') {
     sendResponse(id, {
       tools: [
@@ -75,18 +73,9 @@ Returns a dependency map showing all files Claude must touch.`,
           inputSchema: {
             type: 'object',
             properties: {
-              file: {
-                type: 'string',
-                description: 'The file name or path you are about to change (e.g. "LeadPipeline.tsx")'
-              },
-              project_root: {
-                type: 'string',
-                description: 'Absolute path to the project root directory'
-              },
-              task: {
-                type: 'string',
-                description: 'Brief description of what you are trying to accomplish'
-              }
+              file: { type: 'string', description: 'The file name or path you are about to change' },
+              project_root: { type: 'string', description: 'Absolute path to the project root directory' },
+              task: { type: 'string', description: 'Brief description of what you are trying to accomplish' }
             },
             required: ['file', 'project_root']
           }
@@ -100,14 +89,8 @@ Claude only reports task complete after this returns COMPLETE.`,
           inputSchema: {
             type: 'object',
             properties: {
-              file: {
-                type: 'string',
-                description: 'The same file name you traced at the start of this task'
-              },
-              project_root: {
-                type: 'string',
-                description: 'Absolute path to the project root directory'
-              }
+              file: { type: 'string', description: 'The same file name you traced at the start of this task' },
+              project_root: { type: 'string', description: 'Absolute path to the project root directory' }
             },
             required: ['file', 'project_root']
           }
@@ -115,15 +98,11 @@ Claude only reports task complete after this returns COMPLETE.`,
         {
           name: 'setup_project',
           description: `Run this ONCE when setting up United Agents in a new project.
-Writes the CLAUDE.md rules file that enforces the full completion workflow.
-After setup, Claude will automatically follow the trace → execute → verify loop.`,
+Writes the CLAUDE.md rules file that enforces the full completion workflow.`,
           inputSchema: {
             type: 'object',
             properties: {
-              project_root: {
-                type: 'string',
-                description: 'Absolute path to the project root directory'
-              }
+              project_root: { type: 'string', description: 'Absolute path to the project root directory' }
             },
             required: ['project_root']
           }
@@ -133,116 +112,73 @@ After setup, Claude will automatically follow the trace → execute → verify l
     return
   }
 
-  // Handle tool calls
   if (method === 'tools/call') {
     const toolName = params?.name
     const args = params?.arguments || {}
 
     if (toolName === 'trace_dependencies') {
       const { file, project_root, task } = args
-
-      if (!file || !project_root) {
-        sendError(id, -32602, 'Missing required parameters: file and project_root')
-        return
-      }
-
+      if (!file || !project_root) { sendError(id, -32602, 'Missing required parameters'); return }
       try {
         const map = traceDepedencies(file, project_root)
         activeMaps.set(file, map)
-
         const formatted = formatDependencyMap(map)
         const taskNote = task ? `\n🎯 Task: "${task}"\n` : ''
-
         sendResponse(id, {
           content: [{
             type: 'text',
-            text: taskNote + formatted + '\n\n⚡ REQUIRED: Work through ALL 🎯 direct, 🌐 api, and 🗄️ db files before calling verify_completeness. Do not stop after the first file.'
+            text: taskNote + formatted + '\n\n⚡ REQUIRED: Work through ALL 🎯 direct, 🌐 api, and 🗄️ db files before calling verify_completeness.'
           }]
         })
-      } catch (err: any) {
-        sendError(id, -32603, `Tracer error: ${err.message}`)
-      }
+      } catch (err: any) { sendError(id, -32603, `Tracer error: ${err.message}`) }
       return
     }
 
     if (toolName === 'verify_completeness') {
       const { file, project_root } = args
-
-      if (!file || !project_root) {
-        sendError(id, -32602, 'Missing required parameters: file and project_root')
-        return
-      }
-
+      if (!file || !project_root) { sendError(id, -32602, 'Missing required parameters'); return }
       let map = activeMaps.get(file)
-      if (!map) {
-        map = traceDepedencies(file, project_root)
-        activeMaps.set(file, map)
-      }
-
+      if (!map) { map = traceDepedencies(file, project_root); activeMaps.set(file, map) }
       try {
         const result = checkCompleteness(map, project_root)
 
+        // Track analytics — silent, never blocks
         if (result.isComplete) {
           activeMaps.delete(file)
+          trackEvent('task_complete', { files_in_map: map.nodes.length })
+        } else {
+          trackEvent('task_incomplete', { files_in_map: map.nodes.length, missing: result.missing.length })
         }
 
-        sendResponse(id, {
-          content: [{
-            type: 'text',
-            text: result.summary
-          }]
-        })
-      } catch (err: any) {
-        sendError(id, -32603, `Checker error: ${err.message}`)
-      }
+        sendResponse(id, { content: [{ type: 'text', text: result.summary }] })
+      } catch (err: any) { sendError(id, -32603, `Checker error: ${err.message}`) }
       return
     }
 
     if (toolName === 'setup_project') {
       const { project_root } = args
-
-      if (!project_root) {
-        sendError(id, -32602, 'Missing required parameter: project_root')
-        return
-      }
-
+      if (!project_root) { sendError(id, -32602, 'Missing required parameter: project_root'); return }
       try {
         const claudeMdPath = path.join(project_root, 'CLAUDE.md')
         const claudeMdContent = generateClaudeMd()
-
-        // Check if CLAUDE.md already exists
         if (fs.existsSync(claudeMdPath)) {
           const existing = fs.readFileSync(claudeMdPath, 'utf-8')
           if (existing.includes('United Agents')) {
-            sendResponse(id, {
-              content: [{
-                type: 'text',
-                text: `✅ United Agents rules already in CLAUDE.md at ${claudeMdPath}\n\nThe project is already set up. Claude will follow the trace → execute → verify loop automatically.`
-              }]
-            })
+            sendResponse(id, { content: [{ type: 'text', text: `✅ United Agents already set up in this project.` }] })
             return
           }
-          // Append to existing CLAUDE.md
           fs.writeFileSync(claudeMdPath, existing + '\n\n' + claudeMdContent)
-          sendResponse(id, {
-            content: [{
-              type: 'text',
-              text: `✅ United Agents rules appended to existing CLAUDE.md at ${claudeMdPath}\n\nClaude will now automatically:\n1. Call trace_dependencies before touching files\n2. Work through ALL connected files\n3. Call verify_completeness before saying done\n4. Continue working if incomplete — without asking you`
-            }]
-          })
         } else {
-          // Create new CLAUDE.md
           fs.writeFileSync(claudeMdPath, claudeMdContent)
-          sendResponse(id, {
-            content: [{
-              type: 'text',
-              text: `✅ Created CLAUDE.md at ${claudeMdPath}\n\nClaude will now automatically:\n1. Call trace_dependencies before touching files\n2. Work through ALL connected files\n3. Call verify_completeness before saying done\n4. Continue working if incomplete — without asking you\n\nThe correction loop is closed. Claude cannot declare a task done until verify_completeness confirms ✅ COMPLETE.`
-            }]
-          })
         }
-      } catch (err: any) {
-        sendError(id, -32603, `Setup error: ${err.message}`)
-      }
+        trackEvent('setup')
+        sendResponse(id, {
+          content: [{
+            type: 'text',
+            text: `✅ Created CLAUDE.md at ${claudeMdPath}\n\nClaude will now automatically:\n1. Call trace_dependencies before touching files\n2. Work through ALL connected files\n3. Call verify_completeness before saying done\n4. Continue working if incomplete — without asking you`
+          }]
+        })
+      } catch (err: any) { sendError(id, -32603, `Setup error: ${err.message}`) }
       return
     }
 
@@ -250,27 +186,15 @@ After setup, Claude will automatically follow the trace → execute → verify l
     return
   }
 
-  // Handle notifications (no response needed)
-  if (method === 'notifications/initialized') {
-    return
-  }
-
+  if (method === 'notifications/initialized') return
   sendError(id, -32601, `Method not found: ${method}`)
 }
 
-// Process incoming messages
 rl.on('line', (line: string) => {
   line = line.trim()
   if (!line) return
-
-  try {
-    const request = JSON.parse(line)
-    handleRequest(request)
-  } catch (err) {
-    // Invalid JSON — ignore
-  }
+  try { handleRequest(JSON.parse(line)) } catch {}
 })
 
-// Keep process alive
 process.on('SIGINT', () => process.exit(0))
 process.on('SIGTERM', () => process.exit(0))
