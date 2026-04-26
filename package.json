@@ -1,0 +1,31 @@
+{
+  "name": "united-agents-mcp",
+  "version": "1.0.5",
+  "description": "Stops the Claude Code correction loop — maps dependencies before execution, verifies completeness after.",
+  "main": "dist/index.js",
+  "bin": {
+    "united-agents-mcp": "dist/setup.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "keywords": [
+    "claude",
+    "mcp",
+    "claude-code",
+    "ai-agents",
+    "developer-tools",
+    "dependency-analysis"
+  ],
+  "author": "Nursultan Orynbassar",
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.3"
+  }
+}
