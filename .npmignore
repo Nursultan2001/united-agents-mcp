@@ -1,0 +1,6 @@
+src/
+*.sql
+PROJECT_BRIEF.md
+CLAUDE.md
+restart.sh
+tsconfig.json
