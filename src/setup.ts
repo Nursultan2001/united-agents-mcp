@@ -5,6 +5,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 import * as crypto from 'crypto'
+import * as https from 'https'
 import { generateClaudeMd } from './checker'
 
 const projectRoot = process.cwd()
@@ -22,39 +23,38 @@ function error(msg: string) { console.log(`  ❌ ${msg}`) }
 function run(cmd: string): string {
   try {
     return execSync(cmd, { encoding: 'utf-8', stdio: 'pipe' }).trim()
-  } catch (e: any) {
-    return ''
-  }
+  } catch { return '' }
 }
 
 function hashProject(p: string): string {
   return crypto.createHash('sha256').update(p).digest('hex').slice(0, 16)
 }
 
-async function trackEvent(event: string, extra: Record<string, any> = {}) {
+// Fire-and-forget analytics — synchronous, never blocks, never throws
+function trackEvent(event: string, extra: Record<string, any> = {}) {
   try {
-    const https = await import('https')
-    const body = JSON.stringify({ event, project_hash: hashProject(projectRoot), ...extra })
-    const url = new URL(`${SUPABASE_URL}/rest/v1/ua_analytics`)
-    await new Promise<void>((resolve) => {
-      const req = https.request({
-        hostname: url.hostname, path: url.pathname, method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(body),
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'Prefer': 'return=minimal'
-        }
-      }, () => { resolve() })
-      req.on('error', () => resolve())
-      req.write(body)
-      req.end()
+    const body = JSON.stringify({
+      event,
+      project_hash: hashProject(projectRoot),
+      ...extra
     })
+    const req = https.request({
+      hostname: 'kukulwdpjukalkspjvkn.supabase.co',
+      path: '/rest/v1/ua_analytics',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Prefer': 'return=minimal'
+      }
+    }, () => {})
+    req.on('error', () => {})
+    req.write(body)
+    req.end()
   } catch {}
 }
-
-// ─── HELPERS ───────────────────────────────────────────────────────────────
 
 function commandExists(cmd: string): boolean {
   return run(`which ${cmd}`).length > 0
@@ -68,7 +68,6 @@ function getMcpBinary(): string {
   return ''
 }
 
-// Read JSON file safely
 function readJson(filePath: string): any {
   try {
     if (!fs.existsSync(filePath)) return null
@@ -76,7 +75,6 @@ function readJson(filePath: string): any {
   } catch { return null }
 }
 
-// Write JSON file safely, creating parent dirs
 function writeJson(filePath: string, data: any): boolean {
   try {
     fs.mkdirSync(path.dirname(filePath), { recursive: true })
@@ -85,7 +83,6 @@ function writeJson(filePath: string, data: any): boolean {
   } catch { return false }
 }
 
-// Read TOML file safely
 function readToml(filePath: string): string {
   try {
     if (!fs.existsSync(filePath)) return ''
@@ -93,18 +90,8 @@ function readToml(filePath: string): string {
   } catch { return '' }
 }
 
-// Write TOML file safely
-function writeToml(filePath: string, content: string): boolean {
-  try {
-    fs.mkdirSync(path.dirname(filePath), { recursive: true })
-    fs.writeFileSync(filePath, content)
-    return true
-  } catch { return false }
-}
+// ─── TOOL CONFIGURATORS ───────────────────────────────────────────────────
 
-// ─── TOOL CONFIGURATORS ────────────────────────────────────────────────────
-
-// 1. Claude Code — uses claude CLI command
 function setupClaudeCode(binary: string): 'ok' | 'skip' | 'fail' {
   if (!commandExists('claude')) return 'skip'
   const existing = run('claude mcp list')
@@ -116,92 +103,62 @@ function setupClaudeCode(binary: string): 'ok' | 'skip' | 'fail' {
   return 'ok'
 }
 
-// 2. Cursor — ~/.cursor/mcp.json
 function setupCursor(binary: string): 'ok' | 'skip' | 'fail' {
   const cursorDir = path.join(HOME, '.cursor')
-  // Detect if cursor is installed
   if (!fs.existsSync(cursorDir) && !commandExists('cursor')) return 'skip'
   const configPath = path.join(cursorDir, 'mcp.json')
   const existing = readJson(configPath) || {}
   if (existing?.mcpServers?.['united-agents']) return 'ok'
-  const updated = {
+  return writeJson(configPath, {
     ...existing,
     mcpServers: {
       ...(existing.mcpServers || {}),
-      'united-agents': {
-        command: binary,
-        type: 'stdio'
-      }
+      'united-agents': { command: binary, type: 'stdio' }
     }
-  }
-  return writeJson(configPath, updated) ? 'ok' : 'fail'
+  }) ? 'ok' : 'fail'
 }
 
-// 3. Windsurf — ~/.codeium/windsurf/mcp_config.json
 function setupWindsurf(binary: string): 'ok' | 'skip' | 'fail' {
   const windsurfDir = path.join(HOME, '.codeium', 'windsurf')
   if (!fs.existsSync(windsurfDir) && !commandExists('windsurf')) return 'skip'
   const configPath = path.join(windsurfDir, 'mcp_config.json')
   const existing = readJson(configPath) || {}
   if (existing?.mcpServers?.['united-agents']) return 'ok'
-  const updated = {
+  return writeJson(configPath, {
     ...existing,
     mcpServers: {
       ...(existing.mcpServers || {}),
-      'united-agents': {
-        command: binary,
-        type: 'stdio'
-      }
+      'united-agents': { command: binary, type: 'stdio' }
     }
-  }
-  return writeJson(configPath, updated) ? 'ok' : 'fail'
+  }) ? 'ok' : 'fail'
 }
 
-// 4. GitHub Copilot (VS Code) — .vscode/mcp.json in project
-// Note: uses "servers" key, not "mcpServers"
 function setupCopilot(binary: string): 'ok' | 'skip' | 'fail' {
-  // Detect VS Code
   if (!commandExists('code') && !fs.existsSync(path.join(HOME, '.vscode'))) return 'skip'
   const configPath = path.join(projectRoot, '.vscode', 'mcp.json')
   const existing = readJson(configPath) || {}
   if (existing?.servers?.['united-agents']) return 'ok'
-  const updated = {
+  return writeJson(configPath, {
     ...existing,
     servers: {
       ...(existing.servers || {}),
-      'united-agents': {
-        command: binary,
-        type: 'stdio'
-      }
+      'united-agents': { command: binary, type: 'stdio' }
     }
-  }
-  return writeJson(configPath, updated) ? 'ok' : 'fail'
+  }) ? 'ok' : 'fail'
 }
 
-// 5. Codex (OpenAI) — ~/.codex/config.toml (TOML format)
 function setupCodex(binary: string): 'ok' | 'skip' | 'fail' {
   const codexDir = path.join(HOME, '.codex')
   if (!fs.existsSync(codexDir) && !commandExists('codex')) return 'skip'
   const configPath = path.join(codexDir, 'config.toml')
   const existing = readToml(configPath)
-
-  // Check if already configured
   if (existing.includes('[mcp_servers.united-agents]')) return 'ok'
-
-  // Build the TOML block to append
-  const tomlBlock = `
-[mcp_servers.united-agents]
-command = "${binary}"
-args = []
-`
   try {
     fs.mkdirSync(codexDir, { recursive: true })
-    fs.appendFileSync(configPath, tomlBlock)
+    fs.appendFileSync(configPath, `\n[mcp_servers.united-agents]\ncommand = "${binary}"\nargs = []\n`)
     return 'ok'
   } catch { return 'fail' }
 }
-
-// ─── CLAUDE.MD ─────────────────────────────────────────────────────────────
 
 function writeClaudeMd(): boolean {
   try {
@@ -218,7 +175,7 @@ function writeClaudeMd(): boolean {
   } catch { return false }
 }
 
-// ─── MAIN ──────────────────────────────────────────────────────────────────
+// ─── MAIN ─────────────────────────────────────────────────────────────────
 
 async function main() {
   const args = process.argv.slice(2)
@@ -233,27 +190,24 @@ async function main() {
   log(`📂 Project: ${projectRoot}`)
   log('')
 
-  // Get binary
   const binary = getMcpBinary()
   if (!binary) {
     error('Could not find united-agents-mcp binary. Try: npm install -g united-agents-mcp')
     process.exit(1)
   }
 
-  // ── Step 1: Register in all detected AI tools ──
   log('Step 1/2 — Registering in detected AI coding tools...')
   log('')
 
   const tools = [
-    { name: 'Claude Code', fn: () => setupClaudeCode(binary) },
-    { name: 'Cursor',      fn: () => setupCursor(binary) },
-    { name: 'Windsurf',    fn: () => setupWindsurf(binary) },
+    { name: 'Claude Code',              fn: () => setupClaudeCode(binary) },
+    { name: 'Cursor',                   fn: () => setupCursor(binary) },
+    { name: 'Windsurf',                 fn: () => setupWindsurf(binary) },
     { name: 'GitHub Copilot (VS Code)', fn: () => setupCopilot(binary) },
-    { name: 'Codex (OpenAI)', fn: () => setupCodex(binary) },
+    { name: 'Codex (OpenAI)',           fn: () => setupCodex(binary) },
   ]
 
   let registered = 0
-  let skipped = 0
 
   for (const tool of tools) {
     const result = tool.fn()
@@ -262,7 +216,6 @@ async function main() {
       registered++
     } else if (result === 'skip') {
       skip(`${tool.name} — not detected, skipped`)
-      skipped++
     } else {
       warn(`${tool.name} — could not configure automatically`)
     }
@@ -270,14 +223,10 @@ async function main() {
 
   log('')
   if (registered === 0) {
-    warn('No AI tools were detected. Install Claude Code, Cursor, Windsurf, or Codex first.')
-    log('')
-    log('  Then run: united-agents-mcp setup')
-    log('')
+    warn('No AI tools detected. Install Claude Code, Cursor, Windsurf, or Codex first.')
     process.exit(1)
   }
 
-  // ── Step 2: Write CLAUDE.md ──
   log('Step 2/2 — Writing enforcement rules to CLAUDE.md...')
   const claudeMdWritten = writeClaudeMd()
   if (claudeMdWritten) {
@@ -286,10 +235,9 @@ async function main() {
     warn('Could not write CLAUDE.md. Check folder permissions.')
   }
 
-  // Track analytics
-  await trackEvent('setup', { tools_registered: registered })
+  // Track setup event — fire and forget, never blocks
+  trackEvent('setup', { tools_registered: registered })
 
-  // ── Done ──
   log('')
   log('╔══════════════════════════════════════════════╗')
   log('║              Setup Complete! 🎉              ║')

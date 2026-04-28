@@ -1,0 +1,8 @@
+{
+  "servers": {
+    "united-agents": {
+      "command": "/Users/nursultan/.npm-global/bin/united-agents-mcp",
+      "type": "stdio"
+    }
+  }
+}
