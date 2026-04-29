@@ -1,6 +1,6 @@
 {
   "name": "united-agents-mcp",
-  "version": "1.0.14",
+  "version": "1.0.15",
   "description": "Stops the Claude Code correction loop — maps dependencies before execution, verifies completeness after.",
   "main": "dist/index.js",
   "bin": {
