@@ -11,7 +11,6 @@ import { generateClaudeMd } from './checker'
 const projectRoot = process.cwd()
 const HOME = os.homedir()
 
-const SUPABASE_URL = 'https://kukulwdpjukalkspjvkn.supabase.co'
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1a3Vsd2RwanVrYWxrc3BqdmtuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2MjAwMTksImV4cCI6MjA4OTE5NjAxOX0.51ncH8fJ06UU0sj5FbA_XQSWfDqTHR1784HVqUcHYME'
 
 function log(msg: string) { console.log(msg) }
@@ -21,44 +20,39 @@ function skip(msg: string) { console.log(`  ⚪ ${msg}`) }
 function error(msg: string) { console.log(`  ❌ ${msg}`) }
 
 function run(cmd: string): string {
-  try {
-    return execSync(cmd, { encoding: 'utf-8', stdio: 'pipe' }).trim()
-  } catch { return '' }
+  try { return execSync(cmd, { encoding: 'utf-8', stdio: 'pipe' }).trim() }
+  catch { return '' }
 }
 
 function hashProject(p: string): string {
   return crypto.createHash('sha256').update(p).digest('hex').slice(0, 16)
 }
 
-// Fire-and-forget analytics — synchronous, never blocks, never throws
-function trackEvent(event: string, extra: Record<string, any> = {}) {
-  try {
-    const body = JSON.stringify({
-      event,
-      project_hash: hashProject(projectRoot),
-      ...extra
-    })
-    const req = https.request({
-      hostname: 'kukulwdpjukalkspjvkn.supabase.co',
-      path: '/rest/v1/ua_analytics',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(body),
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        'Prefer': 'return=minimal'
-      }
-    }, () => {})
-    req.on('error', () => {})
-    req.write(body)
-    req.end()
-  } catch {}
+function trackEvent(event: string, extra: Record<string, any> = {}): Promise<void> {
+  return new Promise((resolve) => {
+    try {
+      const body = JSON.stringify({ event, project_hash: hashProject(projectRoot), ...extra })
+      const req = https.request({
+        hostname: 'kukulwdpjukalkspjvkn.supabase.co',
+        path: '/rest/v1/ua_analytics',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body),
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Prefer': 'return=minimal'
+        }
+      }, () => { resolve() })
+      req.on('error', () => { resolve() })
+      req.write(body)
+      req.end()
+      setTimeout(resolve, 3000)
+    } catch { resolve() }
+  })
 }
 
-function commandExists(cmd: string): boolean {
-  return run(`which ${cmd}`).length > 0
-}
+function commandExists(cmd: string): boolean { return run(`which ${cmd}`).length > 0 }
 
 function getMcpBinary(): string {
   const r = run('which united-agents-mcp')
@@ -90,8 +84,6 @@ function readToml(filePath: string): string {
   } catch { return '' }
 }
 
-// ─── TOOL CONFIGURATORS ───────────────────────────────────────────────────
-
 function setupClaudeCode(binary: string): 'ok' | 'skip' | 'fail' {
   if (!commandExists('claude')) return 'skip'
   const existing = run('claude mcp list')
@@ -111,10 +103,7 @@ function setupCursor(binary: string): 'ok' | 'skip' | 'fail' {
   if (existing?.mcpServers?.['united-agents']) return 'ok'
   return writeJson(configPath, {
     ...existing,
-    mcpServers: {
-      ...(existing.mcpServers || {}),
-      'united-agents': { command: binary, type: 'stdio' }
-    }
+    mcpServers: { ...(existing.mcpServers || {}), 'united-agents': { command: binary, type: 'stdio' } }
   }) ? 'ok' : 'fail'
 }
 
@@ -126,10 +115,7 @@ function setupWindsurf(binary: string): 'ok' | 'skip' | 'fail' {
   if (existing?.mcpServers?.['united-agents']) return 'ok'
   return writeJson(configPath, {
     ...existing,
-    mcpServers: {
-      ...(existing.mcpServers || {}),
-      'united-agents': { command: binary, type: 'stdio' }
-    }
+    mcpServers: { ...(existing.mcpServers || {}), 'united-agents': { command: binary, type: 'stdio' } }
   }) ? 'ok' : 'fail'
 }
 
@@ -140,10 +126,7 @@ function setupCopilot(binary: string): 'ok' | 'skip' | 'fail' {
   if (existing?.servers?.['united-agents']) return 'ok'
   return writeJson(configPath, {
     ...existing,
-    servers: {
-      ...(existing.servers || {}),
-      'united-agents': { command: binary, type: 'stdio' }
-    }
+    servers: { ...(existing.servers || {}), 'united-agents': { command: binary, type: 'stdio' } }
   }) ? 'ok' : 'fail'
 }
 
@@ -174,8 +157,6 @@ function writeClaudeMd(): boolean {
     return true
   } catch { return false }
 }
-
-// ─── MAIN ─────────────────────────────────────────────────────────────────
 
 async function main() {
   const args = process.argv.slice(2)
@@ -208,35 +189,29 @@ async function main() {
   ]
 
   let registered = 0
-
   for (const tool of tools) {
     const result = tool.fn()
-    if (result === 'ok') {
-      success(`${tool.name}`)
-      registered++
-    } else if (result === 'skip') {
-      skip(`${tool.name} — not detected, skipped`)
-    } else {
-      warn(`${tool.name} — could not configure automatically`)
-    }
+    if (result === 'ok') { success(`${tool.name}`); registered++ }
+    else if (result === 'skip') { skip(`${tool.name} — not detected, skipped`) }
+    else { warn(`${tool.name} — could not configure automatically`) }
   }
 
   log('')
   if (registered === 0) {
-    warn('No AI tools detected. Install Claude Code, Cursor, Windsurf, or Codex first.')
+    warn('No AI tools detected.')
     process.exit(1)
   }
 
   log('Step 2/2 — Writing enforcement rules to CLAUDE.md...')
-  const claudeMdWritten = writeClaudeMd()
-  if (claudeMdWritten) {
+  if (writeClaudeMd()) {
     success('CLAUDE.md written — enforcement rules active for this project')
   } else {
     warn('Could not write CLAUDE.md. Check folder permissions.')
   }
 
-  // Track setup event — fire and forget, never blocks
-  trackEvent('setup', { tools_registered: registered })
+  log('')
+  log('  Sending analytics...')
+  await trackEvent('setup', { tools_registered: registered })
 
   log('')
   log('╔══════════════════════════════════════════════╗')
@@ -246,18 +221,10 @@ async function main() {
   log(`  Registered in ${registered} tool${registered !== 1 ? 's' : ''}.`)
   log('  The correction loop is now stopped in all of them.')
   log('')
-  log('  What happens now:')
-  log('  • Open any registered AI tool in this project')
-  log('  • Give it a task as normal')
-  log('  • Dependencies are mapped before any file is touched')
-  log('  • The AI cannot say "done" until all files are addressed')
-  log('')
   log('  For new projects, run from that project folder:')
   log('    united-agents-mcp setup')
   log('')
-  log('  ─────────────────────────────────────────────')
-  log('    unitedagents.dev')
-  log('  ─────────────────────────────────────────────')
+  log('  unitedagents.dev')
   log('')
 }
 
