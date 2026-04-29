@@ -28,13 +28,9 @@ function hashProject(p: string): string {
   return crypto.createHash('sha256').update(p).digest('hex').slice(0, 16)
 }
 
-// Only send fields that exist in ua_analytics: event, project_hash
 function trackEvent(event: string) {
   try {
-    const body = JSON.stringify({
-      event,
-      project_hash: hashProject(projectRoot)
-    })
+    const body = JSON.stringify({ event, project_hash: hashProject(projectRoot) })
     const escaped = body.replace(/'/g, "'\\''")
     run(
       `curl -s -o /dev/null -X POST ` +
@@ -154,9 +150,86 @@ function writeClaudeMd(): boolean {
   } catch { return false }
 }
 
+// ─── HISTORY COMMAND ────────────────────────────────────────────────────────
+
+function showHistory() {
+  const historyPath = path.join(projectRoot, '.ua-history.json')
+
+  if (!fs.existsSync(historyPath)) {
+    log('')
+    log('  📭 No history yet.')
+    log('  United Agents will log every task here as you use it.')
+    log('')
+    return
+  }
+
+  try {
+    const history = JSON.parse(fs.readFileSync(historyPath, 'utf-8'))
+    if (history.length === 0) {
+      log('\n  📭 No history yet.\n')
+      return
+    }
+
+    log('')
+    log('  📋 United Agents — Task History')
+    log('  ' + '─'.repeat(56))
+    log('')
+
+    const recent = [...history].reverse().slice(0, 20)
+    for (const entry of recent) {
+      const date = new Date(entry.timestamp)
+      const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      const timeStr = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+
+      if (entry.event === 'setup') {
+        log(`  ${dateStr} ${timeStr}  🔧 setup`)
+        continue
+      }
+
+      const icon = entry.result === 'complete' ? '✅' : '🔄'
+      const fileStr = ((entry.file || 'unknown').split('/').pop() || '').padEnd(30)
+      const filesStr = entry.files_in_map ? `${entry.files_in_map} files` : ''
+      const taskStr = entry.task ? `\n              💬 "${entry.task}"` : ''
+      log(`  ${dateStr} ${timeStr}  ${icon} ${fileStr} ${filesStr}${taskStr}`)
+    }
+
+    if (history.length > 20) {
+      log('')
+      log(`  ... and ${history.length - 20} more. See .ua-history.json for full log.`)
+    }
+
+    log('')
+    const tasks = history.filter((e: any) => e.event !== 'setup')
+    const done = history.filter((e: any) => e.result === 'complete')
+    log(`  Total tasks: ${tasks.length}  |  Completed: ${done.length}  |  Setups: ${history.filter((e: any) => e.event === 'setup').length}`)
+    log(`  Full log: ${historyPath}`)
+    log('')
+  } catch {
+    log('\n  ❌ Could not read history file.\n')
+  }
+}
+
+// ─── MAIN ───────────────────────────────────────────────────────────────────
+
 async function main() {
   const args = process.argv.slice(2)
-  if (args[0] !== 'setup') return
+
+  // united-agents-mcp history
+  if (args[0] === 'history') {
+    showHistory()
+    return
+  }
+
+  if (args[0] !== 'setup') {
+    log('')
+    log('  United Agents MCP')
+    log('')
+    log('  Commands:')
+    log('    united-agents-mcp setup    — set up this project')
+    log('    united-agents-mcp history  — show task history for this project')
+    log('')
+    return
+  }
 
   log('')
   log('╔══════════════════════════════════════════════╗')
@@ -205,7 +278,6 @@ async function main() {
     warn('Could not write CLAUDE.md. Check folder permissions.')
   }
 
-  // Track setup — only event + project_hash, no extra fields
   trackEvent('setup')
 
   log('')
@@ -216,8 +288,9 @@ async function main() {
   log(`  Registered in ${registered} tool${registered !== 1 ? 's' : ''}.`)
   log('  The correction loop is now stopped in all of them.')
   log('')
-  log('  For new projects, run from that project folder:')
-  log('    united-agents-mcp setup')
+  log('  Useful commands:')
+  log('    united-agents-mcp history   — see what UA did in this project')
+  log('    united-agents-mcp setup     — set up a new project')
   log('')
   log('  unitedagents.dev')
   log('')

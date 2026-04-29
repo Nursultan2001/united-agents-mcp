@@ -12,6 +12,83 @@ const activeMaps = new Map<string, DependencyMap>()
 const SUPABASE_HOST = 'fdypwnhvpqqbuoxhrkuq.supabase.co'
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkeXB3bmh2cHFxYnVveGhya3VxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNjMxMDgsImV4cCI6MjA5MjczOTEwOH0.nNc80UDse_yB6WixTjl8xMpCN0B2Zph56R4xn5hwPzk'
 
+// ─── HISTORY LOG ────────────────────────────────────────────────────────────
+
+interface HistoryEntry {
+  timestamp: string
+  event: 'task_complete' | 'task_incomplete' | 'setup'
+  file?: string
+  task?: string
+  files_in_map?: number
+  missing?: number
+  result: 'complete' | 'incomplete' | 'setup'
+}
+
+function getHistoryPath(project_root: string): string {
+  return path.join(project_root, '.ua-history.json')
+}
+
+function readHistory(project_root: string): HistoryEntry[] {
+  try {
+    const p = getHistoryPath(project_root)
+    if (!fs.existsSync(p)) return []
+    return JSON.parse(fs.readFileSync(p, 'utf-8'))
+  } catch { return [] }
+}
+
+function writeHistory(project_root: string, entry: HistoryEntry) {
+  try {
+    const p = getHistoryPath(project_root)
+    const history = readHistory(project_root)
+    history.push(entry)
+    // Keep last 100 entries
+    if (history.length > 100) history.splice(0, history.length - 100)
+    fs.writeFileSync(p, JSON.stringify(history, null, 2))
+  } catch {}
+}
+
+function formatHistory(history: HistoryEntry[]): string {
+  if (history.length === 0) {
+    return '📭 No history yet.\n\nUnited Agents will log every task here once you start using it.'
+  }
+
+  const lines: string[] = ['📋 United Agents — Task History', '─'.repeat(48), '']
+
+  // Show most recent first
+  const recent = [...history].reverse().slice(0, 20)
+
+  for (const entry of recent) {
+    const date = new Date(entry.timestamp)
+    const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    const timeStr = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+
+    if (entry.event === 'setup') {
+      lines.push(`${dateStr} ${timeStr}  🔧 setup         project configured`)
+      continue
+    }
+
+    const icon = entry.result === 'complete' ? '✅' : '🔄'
+    const status = entry.result === 'complete' ? 'complete' : 'incomplete'
+    const fileStr = (entry.file ? (entry.file.split('/').pop() ?? entry.file) : 'unknown')
+    const filesStr = entry.files_in_map ? `${entry.files_in_map} files` : ''
+    const taskStr = entry.task ? `  "${entry.task}"` : ''
+
+    lines.push(`${dateStr} ${timeStr}  ${icon} ${fileStr.padEnd(28)} ${filesStr.padEnd(10)} ${status}${taskStr}`)
+  }
+
+  if (history.length > 20) {
+    lines.push('')
+    lines.push(`... and ${history.length - 20} more entries. See .ua-history.json for full log.`)
+  }
+
+  lines.push('')
+  lines.push(`Total tasks: ${history.filter(e => e.event !== 'setup').length} | Completed: ${history.filter(e => e.result === 'complete').length} | Project setups: ${history.filter(e => e.event === 'setup').length}`)
+
+  return lines.join('\n')
+}
+
+// ─── ANALYTICS ──────────────────────────────────────────────────────────────
+
 function trackEvent(event: string, extra: Record<string, any> = {}) {
   try {
     const body = JSON.stringify({ event, ...extra })
@@ -32,6 +109,8 @@ function trackEvent(event: string, extra: Record<string, any> = {}) {
     req.end()
   } catch {}
 }
+
+// ─── MCP SERVER ─────────────────────────────────────────────────────────────
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -54,7 +133,7 @@ function handleRequest(request: any) {
     sendResponse(id, {
       protocolVersion: '2024-11-05',
       capabilities: { tools: {} },
-      serverInfo: { name: 'united-agents', version: '1.0.11' }
+      serverInfo: { name: 'united-agents', version: '1.0.14' }
     })
     return
   }
@@ -104,6 +183,19 @@ Writes the CLAUDE.md rules file that enforces the full completion workflow.`,
             },
             required: ['project_root']
           }
+        },
+        {
+          name: 'get_history',
+          description: `Show the history of all tasks United Agents has tracked in this project.
+Use this when the user asks "what did you do?", "show history", "what tasks were completed?",
+or any question about past work in this project.`,
+          inputSchema: {
+            type: 'object',
+            properties: {
+              project_root: { type: 'string', description: 'Absolute path to the project root directory' }
+            },
+            required: ['project_root']
+          }
         }
       ]
     })
@@ -122,6 +214,8 @@ Writes the CLAUDE.md rules file that enforces the full completion workflow.`,
         activeMaps.set(file, map)
         const formatted = formatDependencyMap(map)
         const taskNote = task ? `\n🎯 Task: "${task}"\n` : ''
+        // Store task description for history
+        if (task) activeMaps.set(`${file}:task`, { nodes: [], edges: [], task } as any)
         sendResponse(id, {
           content: [{
             type: 'text',
@@ -139,11 +233,31 @@ Writes the CLAUDE.md rules file that enforces the full completion workflow.`,
       if (!map) { map = traceDepedencies(file, project_root); activeMaps.set(file, map) }
       try {
         const result = checkCompleteness(map, project_root)
+        const taskMeta = activeMaps.get(`${file}:task`) as any
+
         if (result.isComplete) {
           activeMaps.delete(file)
+          activeMaps.delete(`${file}:task`)
           trackEvent('task_complete', { files_in_map: map.nodes.length })
+          writeHistory(project_root, {
+            timestamp: new Date().toISOString(),
+            event: 'task_complete',
+            file,
+            task: taskMeta?.task,
+            files_in_map: map.nodes.length,
+            result: 'complete'
+          })
         } else {
           trackEvent('task_incomplete', { files_in_map: map.nodes.length, missing: result.missing.length })
+          writeHistory(project_root, {
+            timestamp: new Date().toISOString(),
+            event: 'task_incomplete',
+            file,
+            task: taskMeta?.task,
+            files_in_map: map.nodes.length,
+            missing: result.missing.length,
+            result: 'incomplete'
+          })
         }
         sendResponse(id, { content: [{ type: 'text', text: result.summary }] })
       } catch (err: any) { sendError(id, -32603, `Checker error: ${err.message}`) }
@@ -167,13 +281,29 @@ Writes the CLAUDE.md rules file that enforces the full completion workflow.`,
           fs.writeFileSync(claudeMdPath, claudeMdContent)
         }
         trackEvent('setup')
+        writeHistory(project_root, {
+          timestamp: new Date().toISOString(),
+          event: 'setup',
+          result: 'setup'
+        })
         sendResponse(id, {
           content: [{
             type: 'text',
-            text: `✅ Created CLAUDE.md at ${claudeMdPath}\n\nClaude will now:\n1. Call trace_dependencies before touching files\n2. Work through ALL connected files\n3. Call verify_completeness before saying done\n4. Continue working if incomplete`
+            text: `✅ Created CLAUDE.md at ${claudeMdPath}\n\nClaude will now:\n1. Call trace_dependencies before touching files\n2. Work through ALL connected files\n3. Call verify_completeness before saying done\n4. Continue working if incomplete\n\nRun get_history anytime to see what United Agents has done in this project.`
           }]
         })
       } catch (err: any) { sendError(id, -32603, `Setup error: ${err.message}`) }
+      return
+    }
+
+    if (toolName === 'get_history') {
+      const { project_root } = args
+      if (!project_root) { sendError(id, -32602, 'Missing required parameter: project_root'); return }
+      try {
+        const history = readHistory(project_root)
+        const formatted = formatHistory(history)
+        sendResponse(id, { content: [{ type: 'text', text: formatted }] })
+      } catch (err: any) { sendError(id, -32603, `History error: ${err.message}`) }
       return
     }
 
