@@ -11,7 +11,7 @@ import { generateClaudeMd } from './checker'
 const projectRoot = process.cwd()
 const HOME = os.homedir()
 
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1a3Vsd2RwanVrYWxrc3BqdmtuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2MjAwMTksImV4cCI6MjA4OTE5NjAxOX0.51ncH8fJ06UU0sj5FbA_XQSWfDqTHR1784HVqUcHYME'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkeXB3bmh2cHFxYnVveGhya3VxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNjMxMDgsImV4cCI6MjA5MjczOTEwOH0.nNc80UDse_yB6WixTjl8xMpCN0B2Zph56R4xn5hwPzk'
 
 function log(msg: string) { console.log(msg) }
 function success(msg: string) { console.log(`  ✅ ${msg}`) }
@@ -33,7 +33,7 @@ function trackEvent(event: string, extra: Record<string, any> = {}): Promise<voi
     try {
       const body = JSON.stringify({ event, project_hash: hashProject(projectRoot), ...extra })
       const req = https.request({
-        hostname: 'kukulwdpjukalkspjvkn.supabase.co',
+        hostname: 'fdypwnhvpqqbuoxhrkuq.supabase.co',
         path: '/rest/v1/ua_analytics',
         method: 'POST',
         headers: {
@@ -209,7 +209,6 @@ async function main() {
     warn('Could not write CLAUDE.md. Check folder permissions.')
   }
 
-  log('')
   log('  Sending analytics...')
   await trackEvent('setup', { tools_registered: registered })
 

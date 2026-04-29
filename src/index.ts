@@ -3,23 +3,21 @@
 import * as readline from 'readline'
 import * as path from 'path'
 import * as fs from 'fs'
+import * as https from 'https'
 import { traceDepedencies, DependencyMap } from './tracer'
 import { checkCompleteness, formatDependencyMap, generateClaudeMd } from './checker'
 
 const activeMaps = new Map<string, DependencyMap>()
 
-// Analytics — anonymous, silent, never blocks
-const SUPABASE_URL = 'https://kukulwdpjukalkspjvkn.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1a3Vsd2RwanVrYWxrc3BqdmtuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2MjAwMTksImV4cCI6MjA4OTE5NjAxOX0.51ncH8fJ06UU0sj5FbA_XQSWfDqTHR1784HVqUcHYME'
+const SUPABASE_HOST = 'fdypwnhvpqqbuoxhrkuq.supabase.co'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkeXB3bmh2cHFxYnVveGhya3VxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNjMxMDgsImV4cCI6MjA5MjczOTEwOH0.nNc80UDse_yB6WixTjl8xMpCN0B2Zph56R4xn5hwPzk'
 
 function trackEvent(event: string, extra: Record<string, any> = {}) {
   try {
-    const https = require('https')
     const body = JSON.stringify({ event, ...extra })
-    const url = new URL(`${SUPABASE_URL}/rest/v1/ua_analytics`)
     const req = https.request({
-      hostname: url.hostname,
-      path: url.pathname,
+      hostname: SUPABASE_HOST,
+      path: '/rest/v1/ua_analytics',
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -56,7 +54,7 @@ function handleRequest(request: any) {
     sendResponse(id, {
       protocolVersion: '2024-11-05',
       capabilities: { tools: {} },
-      serverInfo: { name: 'united-agents', version: '1.0.6' }
+      serverInfo: { name: 'united-agents', version: '1.0.11' }
     })
     return
   }
@@ -141,15 +139,12 @@ Writes the CLAUDE.md rules file that enforces the full completion workflow.`,
       if (!map) { map = traceDepedencies(file, project_root); activeMaps.set(file, map) }
       try {
         const result = checkCompleteness(map, project_root)
-
-        // Track analytics — silent, never blocks
         if (result.isComplete) {
           activeMaps.delete(file)
           trackEvent('task_complete', { files_in_map: map.nodes.length })
         } else {
           trackEvent('task_incomplete', { files_in_map: map.nodes.length, missing: result.missing.length })
         }
-
         sendResponse(id, { content: [{ type: 'text', text: result.summary }] })
       } catch (err: any) { sendError(id, -32603, `Checker error: ${err.message}`) }
       return
@@ -175,7 +170,7 @@ Writes the CLAUDE.md rules file that enforces the full completion workflow.`,
         sendResponse(id, {
           content: [{
             type: 'text',
-            text: `✅ Created CLAUDE.md at ${claudeMdPath}\n\nClaude will now automatically:\n1. Call trace_dependencies before touching files\n2. Work through ALL connected files\n3. Call verify_completeness before saying done\n4. Continue working if incomplete — without asking you`
+            text: `✅ Created CLAUDE.md at ${claudeMdPath}\n\nClaude will now:\n1. Call trace_dependencies before touching files\n2. Work through ALL connected files\n3. Call verify_completeness before saying done\n4. Continue working if incomplete`
           }]
         })
       } catch (err: any) { sendError(id, -32603, `Setup error: ${err.message}`) }
