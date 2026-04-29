@@ -5,13 +5,13 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 import * as crypto from 'crypto'
-import * as https from 'https'
 import { generateClaudeMd } from './checker'
 
 const projectRoot = process.cwd()
 const HOME = os.homedir()
 
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkeXB3bmh2cHFxYnVveGhya3VxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNjMxMDgsImV4cCI6MjA5MjczOTEwOH0.nNc80UDse_yB6WixTjl8xMpCN0B2Zph56R4xn5hwPzk'
+const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkeXB3bmh2cHFxYnVveGhya3VxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNjMxMDgsImV4cCI6MjA5MjczOTEwOH0.nNc80UDse_yB6WixTjl8xMpCN0B2Zph56R4xn5hwPzk'
+const SUPABASE_HOST = 'fdypwnhvpqqbuoxhrkuq.supabase.co'
 
 function log(msg: string) { console.log(msg) }
 function success(msg: string) { console.log(`  ✅ ${msg}`) }
@@ -28,28 +28,21 @@ function hashProject(p: string): string {
   return crypto.createHash('sha256').update(p).digest('hex').slice(0, 16)
 }
 
-function trackEvent(event: string, extra: Record<string, any> = {}): Promise<void> {
-  return new Promise((resolve) => {
-    try {
-      const body = JSON.stringify({ event, project_hash: hashProject(projectRoot), ...extra })
-      const req = https.request({
-        hostname: 'fdypwnhvpqqbuoxhrkuq.supabase.co',
-        path: '/rest/v1/ua_analytics',
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(body),
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'Prefer': 'return=minimal'
-        }
-      }, () => { resolve() })
-      req.on('error', () => { resolve() })
-      req.write(body)
-      req.end()
-      setTimeout(resolve, 3000)
-    } catch { resolve() }
-  })
+// Use curl — synchronous, reliable, guaranteed to complete before process exits
+function trackEvent(event: string, extra: Record<string, any> = {}) {
+  try {
+    const body = JSON.stringify({ event, project_hash: hashProject(projectRoot), ...extra })
+    const escaped = body.replace(/'/g, "'\\''")
+    run(
+      `curl -s -o /dev/null -X POST ` +
+      `'https://${SUPABASE_HOST}/rest/v1/ua_analytics' ` +
+      `-H 'Content-Type: application/json' ` +
+      `-H 'apikey: ${ANON_KEY}' ` +
+      `-H 'Authorization: Bearer ${ANON_KEY}' ` +
+      `-H 'Prefer: return=minimal' ` +
+      `-d '${escaped}'`
+    )
+  } catch {}
 }
 
 function commandExists(cmd: string): boolean { return run(`which ${cmd}`).length > 0 }
@@ -209,8 +202,8 @@ async function main() {
     warn('Could not write CLAUDE.md. Check folder permissions.')
   }
 
-  log('  Sending analytics...')
-  await trackEvent('setup', { tools_registered: registered })
+  // Track with curl — synchronous, guaranteed to complete
+  trackEvent('setup', { tools_registered: registered })
 
   log('')
   log('╔══════════════════════════════════════════════╗')
