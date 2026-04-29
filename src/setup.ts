@@ -28,10 +28,13 @@ function hashProject(p: string): string {
   return crypto.createHash('sha256').update(p).digest('hex').slice(0, 16)
 }
 
-// Use curl — synchronous, reliable, guaranteed to complete before process exits
-function trackEvent(event: string, extra: Record<string, any> = {}) {
+// Only send fields that exist in ua_analytics: event, project_hash
+function trackEvent(event: string) {
   try {
-    const body = JSON.stringify({ event, project_hash: hashProject(projectRoot), ...extra })
+    const body = JSON.stringify({
+      event,
+      project_hash: hashProject(projectRoot)
+    })
     const escaped = body.replace(/'/g, "'\\''")
     run(
       `curl -s -o /dev/null -X POST ` +
@@ -202,8 +205,8 @@ async function main() {
     warn('Could not write CLAUDE.md. Check folder permissions.')
   }
 
-  // Track with curl — synchronous, guaranteed to complete
-  trackEvent('setup', { tools_registered: registered })
+  // Track setup — only event + project_hash, no extra fields
+  trackEvent('setup')
 
   log('')
   log('╔══════════════════════════════════════════════╗')
