@@ -222,15 +222,22 @@ footer{border-top:1px solid var(--b);padding:24px 32px;display:flex;align-items:
 .footer-links a{color:var(--d2);transition:color 0.15s;letter-spacing:0.02em}
 .footer-links a:hover{color:var(--t)}
 
-@media(max-width:900px){
+@media(max-width:1100px){
+  .layout{grid-template-columns:200px 1fr}
+  .sidebar{width:200px}
+  .content{margin-left:200px}
+  .side-bottom{display:none}
+  .side-link{font-size:10px;padding:7px 8px}
+}
+@media(max-width:800px){
   .layout{grid-template-columns:1fr}
-  .sidebar{position:relative;width:100%;height:auto;border-right:none;border-bottom:1px solid var(--b);flex-direction:row;flex-wrap:wrap;padding:16px 20px;gap:12px}
+  .sidebar{position:relative;width:100%;height:auto;border-right:none;border-bottom:1px solid var(--b);flex-direction:row;flex-wrap:wrap;padding:14px 20px;gap:8px}
   .logo-sub,.side-bottom,.side-divider{display:none}
   .logo{margin-bottom:0}
-  .side-nav{flex-direction:row;flex:none;gap:0}
-  .side-link{padding:6px 10px;font-size:10px}
+  .side-nav{flex-direction:row;flex:none;gap:0;flex-wrap:wrap}
+  .side-link{padding:5px 8px;font-size:10px}
   .content{margin-left:0}
-  .hero-body{padding:48px 20px 32px}
+  .hero-body{padding:40px 20px 28px}
   .how-grid,.flow-grid,.stats-grid,.install-grid,.compat-grid{grid-template-columns:1fr}
   .how-card,.flow-col,.stat-block,.install-col,.compat-cell{border-right:none;border-bottom:1px solid var(--b)}
   .phase-row{flex-direction:column}
