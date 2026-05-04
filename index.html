@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>United Agents — MCP for Claude Code</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #0e0e0e;
+  --surface:  #151515;
+  --surface2: #1a1a1a;
+  --border:   rgba(255,255,255,0.09);
+  --text:     #ececec;
+  --muted:    rgba(255,255,255,0.38);
+  --muted2:   rgba(255,255,255,0.18);
+  --orange:   #f97316;
+  --orange-d: rgba(249,115,22,0.12);
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'IBM Plex Sans', sans-serif;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.65;
+  overflow-x: hidden;
+}
+
+a { color: inherit; text-decoration: none; }
+
+/* ── NAV ── */
+nav {
+  height: 56px;
+  padding: 0 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: rgba(14,14,14,0.92);
+  backdrop-filter: blur(8px);
+  z-index: 100;
+}
+
+.logo {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-mark {
+  width: 22px; height: 22px;
+  background: var(--orange);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #000;
+  flex-shrink: 0;
+}
+
+.nav-r { display: flex; align-items: center; gap: 24px; }
+
+.nav-r a {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+  transition: color 0.15s;
+}
+.nav-r a:hover { color: var(--text); }
+
+.nav-cta {
+  background: var(--orange) !important;
+  color: #000 !important;
+  padding: 6px 16px;
+  font-weight: 500;
+  transition: opacity 0.15s !important;
+}
+.nav-cta:hover { opacity: 0.88 !important; }
+
+/* ── HERO — SPLIT LAYOUT ── */
+.hero {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: calc(100vh - 56px);
+  border-bottom: 1px solid var(--border);
+}
+
+.hero-left {
+  padding: 72px 48px 72px 36px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.hero-eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--orange);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-bottom: 28px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.eyebrow-line {
+  width: 28px;
+  height: 1px;
+  background: var(--orange);
+  opacity: 0.5;
+}
+
+h1 {
+  font-family: var(--sans);
+  font-size: clamp(34px, 4vw, 52px);
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  margin-bottom: 24px;
+  color: var(--text);
+}
+
+h1 em {
+  font-style: normal;
+  color: var(--orange);
+}
+
+.hero-sub {
+  font-size: 15px;
+  color: var(--muted);
+  line-height: 1.8;
+  max-width: 400px;
+  margin-bottom: 40px;
+  font-weight: 300;
+}
+
+.hero-btns { display: flex; gap: 12px; flex-wrap: wrap; }
+
+.btn-primary {
+  background: var(--orange);
+  color: #000;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 11px 22px;
+  letter-spacing: 0.02em;
+  transition: opacity 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.btn-primary:hover { opacity: 0.88; }
+
+.btn-ghost {
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 11px 22px;
+  transition: border-color 0.15s, color 0.15s;
+  display: inline-flex;
+  align-items: center;
+}
+.btn-ghost:hover { border-color: rgba(255,255,255,0.25); color: var(--text); }
+
+/* Hero right — terminal */
+.hero-right {
+  padding: 72px 36px 72px 48px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: var(--surface);
+}
+
+.term-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted2);
+  margin-bottom: 12px;
+}
+
+.term {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 13px;
+  overflow: hidden;
+}
+
+.term-bar {
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.td { width: 9px; height: 9px; border-radius: 50%; }
+.td-r { background: #ff5f57; }
+.td-y { background: #febc2e; }
+.td-g { background: #28c840; }
+
+.term-body { padding: 18px 20px; line-height: 2; }
+
+.t-prompt { color: var(--orange); }
+.t-cmd { color: var(--text); }
+.t-out { color: var(--muted); }
+.t-ok { color: #4ade80; }
+.t-err { color: #f87171; }
+.t-dim { color: var(--muted2); }
+.t-blank { display: block; height: 8px; }
+
+/* ── METRICS BAR ── */
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-bottom: 1px solid var(--border);
+}
+
+.metric {
+  padding: 32px 36px;
+  border-right: 1px solid var(--border);
+  position: relative;
+}
+.metric:last-child { border-right: none; }
+
+.metric::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 3px; height: 100%;
+  background: var(--orange);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.metric:hover::before { opacity: 1; }
+
+.metric-num {
+  font-family: var(--mono);
+  font-size: 38px;
+  font-weight: 600;
+  display: block;
+  margin-bottom: 4px;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+
+.metric-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted2);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  display: block;
+}
+
+.metric-sub {
+  font-size: 12px;
+  color: var(--muted2);
+  display: block;
+  margin-top: 2px;
+  font-family: var(--mono);
+}
+
+.live-tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted2);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 8px 36px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+}
+
+.ldot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: #4ade80;
+  animation: pulse 2s ease infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.25} }
+
+/* ── SECTION ── */
+.section {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 88px 36px;
+  border-bottom: 1px solid var(--border);
+}
+
+.section-head { margin-bottom: 52px; }
+
+.label {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--orange);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+  max-width: 60px;
+}
+
+h2 {
+  font-size: clamp(24px, 3vw, 36px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin-bottom: 14px;
+}
+
+.sub {
+  font-size: 15px;
+  color: var(--muted);
+  max-width: 480px;
+  line-height: 1.8;
+  font-weight: 300;
+}
+
+/* ── TOOLS ── */
+.tools {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border: 1px solid var(--border);
+  gap: 0;
+}
+
+.tool {
+  padding: 32px 28px;
+  border-right: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+  transition: background 0.2s;
+}
+.tool:last-child { border-right: none; }
+.tool:hover { background: var(--surface); }
+
+.tool-icon {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--orange);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tool-num {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted2);
+  margin-right: 4px;
+}
+
+.tool h3 {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 12px;
+  color: var(--text);
+}
+
+.tool p {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.85;
+  font-weight: 300;
+}
+
+.tool-when {
+  margin-top: 20px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted2);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+/* ── BEFORE/AFTER ── */
+.ba-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border: 1px solid var(--border);
+}
+
+.ba-col {
+  padding: 0;
+  border-right: 1px solid var(--border);
+}
+.ba-col:last-child { border-right: none; }
+
+.ba-head {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ba-head.bad { color: #f87171; }
+.ba-head.good { color: #4ade80; }
+
+.ba-dot { width: 7px; height: 7px; border-radius: 50%; }
+.ba-dot.bad { background: #f87171; }
+.ba-dot.good { background: #4ade80; }
+
+.ba-body {
+  padding: 20px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 2.1;
+  background: var(--surface);
+  min-height: 220px;
+}
+
+.l-you { color: var(--text); }
+.l-claude { color: var(--muted); }
+.l-ua { color: #4ade80; }
+.l-fail { color: #f87171; }
+.l-dim { color: var(--muted2); font-size: 11.5px; }
+
+/* ── INSTALL ── */
+.install-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border: 1px solid var(--border);
+}
+
+.install-col {
+  padding: 32px 28px;
+  border-right: 1px solid var(--border);
+}
+.install-col:last-child { border-right: none; }
+
+.install-step {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted2);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+
+.cmd-block {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 13px 16px;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  user-select: none;
+}
+.cmd-block:hover { border-color: var(--orange); }
+
+.cmd-prompt { color: var(--orange); margin-right: 8px; }
+.cmd-copy { font-size: 10px; color: var(--muted2); letter-spacing: 0.08em; text-transform: uppercase; flex-shrink: 0; margin-left: 12px; }
+.cmd-block:hover .cmd-copy { color: var(--orange); }
+
+.install-note {
+  font-size: 12px;
+  color: var(--muted2);
+  margin-top: 12px;
+  line-height: 1.7;
+  font-family: var(--mono);
+}
+
+/* ── FOOTER ── */
+footer {
+  padding: 28px 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--border);
+}
+
+.footer-logo {
+  font-family: var(--mono);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.footer-links { display: flex; gap: 28px; }
+.footer-links a {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted2);
+  transition: color 0.15s;
+  letter-spacing: 0.02em;
+}
+.footer-links a:hover { color: var(--text); }
+
+@media (max-width: 800px) {
+  .hero { grid-template-columns: 1fr; }
+  .hero-left { border-right: none; border-bottom: 1px solid var(--border); }
+  .hero-right { padding: 40px 20px; }
+  .metrics { grid-template-columns: 1fr; }
+  .metric { border-right: none; border-bottom: 1px solid var(--border); }
+  .tools { grid-template-columns: 1fr; }
+  .tool { border-right: none; border-bottom: 1px solid var(--border); }
+  .ba-grid { grid-template-columns: 1fr; }
+  .ba-col { border-right: none; border-bottom: 1px solid var(--border); }
+  .install-grid { grid-template-columns: 1fr; }
+  .install-col { border-right: none; border-bottom: 1px solid var(--border); }
+  .section { padding: 60px 20px; }
+  nav { padding: 0 20px; }
+  footer { padding: 24px 20px; flex-direction: column; gap: 16px; }
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="logo">
+    <div class="logo-mark">UA</div>
+    united-agents-mcp
+  </div>
+  <div class="nav-r">
+    <a href="#how">how it works</a>
+    <a href="#install">install</a>
+    <a href="https://github.com/Nursultan2001/united-agents-mcp" target="_blank">github ↗</a>
+    <a href="#install" class="nav-cta">get started</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-left">
+    <div class="hero-eyebrow">
+      <span class="eyebrow-line"></span>
+      MCP server for Claude Code
+    </div>
+    <h1>Stop telling Claude<br>it <em>didn't finish.</em></h1>
+    <p class="hero-sub">
+      United Agents maps every connected file before Claude starts
+      and blocks "done" until all of them are addressed.
+      One install. The correction loop ends.
+    </p>
+    <div class="hero-btns">
+      <a href="#install" class="btn-primary">
+        Get started free
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2.5 6.5h8M7.5 3.5l3 3-3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+      <a href="https://github.com/Nursultan2001/united-agents-mcp" target="_blank" class="btn-ghost">View on GitHub</a>
+    </div>
+  </div>
+
+  <div class="hero-right">
+    <p class="term-label">install united agents</p>
+    <div class="term">
+      <div class="term-bar">
+        <div class="td td-r"></div>
+        <div class="td td-y"></div>
+        <div class="td td-g"></div>
+      </div>
+      <div class="term-body">
+        <div><span class="t-prompt">$</span> <span class="t-cmd">npm install -g united-agents-mcp</span></div>
+        <div class="t-out">added 58 packages in 2s</div>
+        <span class="t-blank"></span>
+        <div><span class="t-prompt">$</span> <span class="t-cmd">united-agents-mcp setup</span></div>
+        <div class="t-out">Step 1/3 — Checking Claude Code...</div>
+        <div class="t-ok">✓ Claude Code found</div>
+        <div class="t-out">Step 2/3 — Registering MCP server...</div>
+        <div class="t-ok">✓ United Agents registered globally</div>
+        <div class="t-out">Step 3/3 — Writing CLAUDE.md rules...</div>
+        <div class="t-ok">✓ Setup complete</div>
+        <span class="t-blank"></span>
+        <div class="t-dim"># The correction loop is gone.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- LIVE METRICS -->
+<div class="live-tag">
+  <span class="ldot"></span>
+  live — anonymous analytics, updates every 30s
+</div>
+<div class="metrics">
+  <div class="metric">
+    <span class="metric-num" id="stat-downloads">—</span>
+    <span class="metric-label">npm downloads</span>
+    <span class="metric-sub">last 30 days</span>
+  </div>
+  <div class="metric">
+    <span class="metric-num" id="stat-projects">—</span>
+    <span class="metric-label">projects set up</span>
+    <span class="metric-sub">unique codebases</span>
+  </div>
+  <div class="metric">
+    <span class="metric-num" id="stat-tasks">—</span>
+    <span class="metric-label">tasks completed</span>
+    <span class="metric-sub">loops stopped</span>
+  </div>
+</div>
+
+<!-- BEFORE / AFTER -->
+<div class="section">
+  <div class="section-head">
+    <p class="label">real examples</p>
+    <h2>Where other tools fail</h2>
+    <p class="sub">A real drag bug fix session. Same task. Same model. One round vs five.</p>
+  </div>
+
+  <div class="ba-grid">
+    <div class="ba-col">
+      <div class="ba-head bad">
+        <span class="ba-dot bad"></span>
+        Without United Agents
+      </div>
+      <div class="ba-body">
+        <div><span class="l-you">you&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span> fix the drag bug in KanbanPipeline</div>
+        <div><span class="l-claude">claude&nbsp;&nbsp;</span> fixed KanbanPipeline.tsx. done ✓</div>
+        <div><span class="l-fail">you&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span> still broken</div>
+        <div><span class="l-claude">claude&nbsp;&nbsp;</span> fixed moveLead function. done ✓</div>
+        <div><span class="l-fail">you&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span> STILL broken</div>
+        <div><span class="l-claude">claude&nbsp;&nbsp;</span> fixed RLS policy. done ✓</div>
+        <div><span class="l-fail">you&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span> still. broken.</div>
+        <div class="l-dim">→ 5 rounds · 4× tokens · 45 min wasted</div>
+      </div>
+    </div>
+    <div class="ba-col">
+      <div class="ba-head good">
+        <span class="ba-dot good"></span>
+        With United Agents
+      </div>
+      <div class="ba-body">
+        <div><span class="l-you">you&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span> fix the drag bug in KanbanPipeline</div>
+        <div><span class="l-ua">ua&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span> mapping dependencies... 7 files</div>
+        <div class="l-dim">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;KanbanPipeline · moveLead · RLS · handlers</div>
+        <div><span class="l-claude">claude&nbsp;&nbsp;</span> working through all 7 files...</div>
+        <div><span class="l-ua">ua&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span> ✓ all files addressed. complete.</div>
+        <div>&nbsp;</div>
+        <div class="l-dim">→ 1 round · done</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- HOW IT WORKS -->
+<div class="section" id="how">
+  <div class="section-head">
+    <p class="label">How it works</p>
+    <h2>Two tools. One closed loop.</h2>
+    <p class="sub">An MCP server that plugs into Claude Code, Cursor, or any MCP-compatible tool and enforces task completeness on every task — automatically.</p>
+  </div>
+
+  <div class="tools">
+    <div class="tool">
+      <div class="tool-icon"><span class="tool-num">01</span> trace_dependencies</div>
+      <h3>Map before you touch</h3>
+      <p>Before Claude edits any file, United Agents scans your codebase and maps every connected file — components, API routes, database layers, parent files. Claude sees the full picture first.</p>
+      <p class="tool-when">→ call before editing</p>
+    </div>
+    <div class="tool">
+      <div class="tool-icon"><span class="tool-num">02</span> verify_completeness</div>
+      <h3>Block premature "done"</h3>
+      <p>Before Claude says done, United Agents checks what was actually changed against the dependency map. Missing a file? Claude keeps working automatically — no asking, no waiting.</p>
+      <p class="tool-when">→ call before saying done</p>
+    </div>
+    <div class="tool">
+      <div class="tool-icon"><span class="tool-num">03</span> setup_project</div>
+      <h3>Set and forget</h3>
+      <p>Writes a CLAUDE.md into your project enforcing the trace → execute → verify loop on every task. Claude reads it at session start. Run once. Always active.</p>
+      <p class="tool-when">→ run once per project</p>
+    </div>
+  </div>
+</div>
+
+<!-- INSTALL -->
+<div class="section" id="install">
+  <div class="section-head">
+    <p class="label">Install</p>
+    <h2>Two commands.<br>Never think about it again.</h2>
+    <p class="sub">Install once globally. Set up each project once. After that — open Claude Code normally. United Agents runs invisibly every time.</p>
+  </div>
+
+  <div class="install-grid">
+    <div class="install-col">
+      <span class="install-step">Step 01 — Install globally, once ever</span>
+      <div class="cmd-block" onclick="copyCmd(this, 'npm install -g united-agents-mcp')">
+        <span><span class="cmd-prompt">$</span> npm install -g united-agents-mcp</span>
+        <span class="cmd-copy">copy</span>
+      </div>
+      <p class="install-note">Installs the MCP server globally on your machine. Never run again.</p>
+    </div>
+    <div class="install-col">
+      <span class="install-step">Step 02 — Set up each project, once</span>
+      <div class="cmd-block" onclick="copyCmd(this, 'united-agents-mcp setup')">
+        <span><span class="cmd-prompt">$</span> united-agents-mcp setup</span>
+        <span class="cmd-copy">copy</span>
+      </div>
+      <p class="install-note">Run from your project folder. Registers globally and writes CLAUDE.md. Never run again for that project.</p>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">
+    <div class="logo-mark">UA</div>
+    united-agents-mcp — open source MCP server
+  </div>
+  <div class="footer-links">
+    <a href="https://github.com/Nursultan2001/united-agents-mcp" target="_blank">github</a>
+    <a href="https://www.npmjs.com/package/united-agents-mcp" target="_blank">npm</a>
+    <a href="#stats">stats</a>
+  </div>
+</footer>
+
+<script>
+function copyCmd(el, text) {
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = el.querySelector('.cmd-copy')
+    btn.textContent = 'copied!'
+    setTimeout(() => { btn.textContent = 'copy' }, 2000)
+  })
+}
+
+async function loadStats() {
+  try {
+    const r = await fetch('https://api.npmjs.org/downloads/point/last-month/united-agents-mcp')
+    const d = await r.json()
+    document.getElementById('stat-downloads').textContent = (d.downloads || 0).toLocaleString()
+  } catch {}
+  try {
+    const r = await fetch(
+      'https://kukulwdpjukalkspjvkn.supabase.co/rest/v1/ua_public_stats?select=*',
+      { headers: {
+        'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1a3Vsd2RwanVrYWxrc3BqdmtuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2MjAwMTksImV4cCI6MjA4OTE5NjAxOX0.51ncH8fJ06UU0sj5FbA_XQSWfDqTHR1784HVqUcHYME',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1a3Vsd2RwanVrYWxrc3BqdmtuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2MjAwMTksImV4cCI6MjA4OTE5NjAxOX0.51ncH8fJ06UU0sj5FbA_XQSWfDqTHR1784HVqUcHYME'
+      }}
+    )
+    const d = await r.json()
+    if (d && d[0]) {
+      document.getElementById('stat-projects').textContent = Number(d[0].unique_projects || 0).toLocaleString()
+      document.getElementById('stat-tasks').textContent = Number(d[0].total_tasks_completed || 0).toLocaleString()
+    }
+  } catch {}
+}
+
+loadStats()
+setInterval(loadStats, 30000)
+</script>
+</body>
+</html>
