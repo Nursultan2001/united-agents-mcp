@@ -104,7 +104,12 @@ Only report to the user after verify_completeness returns ✅ COMPLETE.`
 // Format dependency map for display
 export function formatDependencyMap(map: DependencyMap): string {
   if (map.nodes.length === 0) {
-    return `❌ Could not find file matching "${map.target}" in the project.`
+    return (
+      `❌ Could not find file matching "${map.target}" in the project.\n\n` +
+      `   Tip: pass an absolute path or one that includes the immediate parent ` +
+      `directory (e.g. "components/Button.tsx" instead of "Button.tsx") so the ` +
+      `tracer can disambiguate.`
+    )
   }
 
   const typeEmoji: Record<string, string> = {
