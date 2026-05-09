@@ -173,6 +173,8 @@ function showHistory() {
     log('')
     log('  📋 United Agents — Task History')
     log('  ' + '─'.repeat(56))
+    log(`  📌 Project hash: ${hashProject(projectRoot)}`)
+    log('  ' + '─'.repeat(56))
     log('')
 
     const recent = [...history].reverse().slice(0, 20)
@@ -214,6 +216,12 @@ function showHistory() {
 async function main() {
   const args = process.argv.slice(2)
 
+  // united-agents-mcp hash — print this project's deterministic fingerprint
+  if (args[0] === 'hash') {
+    log(hashProject(projectRoot))
+    return
+  }
+
   // united-agents-mcp history
   if (args[0] === 'history') {
     showHistory()
@@ -227,6 +235,7 @@ async function main() {
     log('  Commands:')
     log('    united-agents-mcp setup    — set up this project')
     log('    united-agents-mcp history  — show task history for this project')
+    log('    united-agents-mcp hash     — print this project\'s registry fingerprint')
     log('')
     return
   }
@@ -280,6 +289,7 @@ async function main() {
 
   trackEvent('setup')
 
+  const projectHash = hashProject(projectRoot)
   log('')
   log('╔══════════════════════════════════════════════╗')
   log('║              Setup Complete! 🎉              ║')
@@ -288,8 +298,12 @@ async function main() {
   log(`  Registered in ${registered} tool${registered !== 1 ? 's' : ''}.`)
   log('  The correction loop is now stopped in all of them.')
   log('')
+  log(`  📌 Project hash: ${projectHash}`)
+  log('     (use this to claim your agent at unitedagents.dev/claim)')
+  log('')
   log('  Useful commands:')
   log('    united-agents-mcp history   — see what UA did in this project')
+  log('    united-agents-mcp hash      — print this project\'s registry fingerprint')
   log('    united-agents-mcp setup     — set up a new project')
   log('')
   log('  unitedagents.dev')

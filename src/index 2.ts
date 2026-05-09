@@ -4,15 +4,8 @@ import * as readline from 'readline'
 import * as path from 'path'
 import * as fs from 'fs'
 import * as https from 'https'
-import * as crypto from 'crypto'
 import { traceDepedencies, DependencyMap } from './tracer'
 import { checkCompleteness, formatDependencyMap, generateClaudeMd } from './checker'
-
-// Deterministic project fingerprint — SHA-256 of absolute path, first 16 chars.
-// Used by the United Agents registry to link MCP-tracked task data to a claimed agent.
-function hashProject(p: string): string {
-  return crypto.createHash('sha256').update(p).digest('hex').slice(0, 16)
-}
 
 const activeMaps = new Map<string, DependencyMap>()
 
@@ -24,7 +17,6 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 interface HistoryEntry {
   timestamp: string
   event: 'task_complete' | 'task_incomplete' | 'setup'
-  project_hash?: string
   file?: string
   task?: string
   files_in_map?: number
@@ -48,9 +40,6 @@ function writeHistory(project_root: string, entry: HistoryEntry) {
   try {
     const p = getHistoryPath(project_root)
     const history = readHistory(project_root)
-    // Always stamp project_hash so the United Agents registry can link this file
-    // to a claimed agent without the user computing SHA-256 by hand.
-    if (!entry.project_hash) entry.project_hash = hashProject(project_root)
     history.push(entry)
     // Keep last 100 entries
     if (history.length > 100) history.splice(0, history.length - 100)
@@ -80,7 +69,7 @@ function formatHistory(history: HistoryEntry[]): string {
 
     const icon = entry.result === 'complete' ? '✅' : '🔄'
     const status = entry.result === 'complete' ? 'complete' : 'incomplete'
-    const fileStr = (entry.file ? (entry.file.split('/').pop() ?? entry.file) : 'unknown')
+    const fileStr = entry.file ? entry.file.split('/').pop() : 'unknown'
     const filesStr = entry.files_in_map ? `${entry.files_in_map} files` : ''
     const taskStr = entry.task ? `  "${entry.task}"` : ''
 
@@ -279,30 +268,28 @@ or any question about past work in this project.`,
       const { project_root } = args
       if (!project_root) { sendError(id, -32602, 'Missing required parameter: project_root'); return }
       try {
-        const projectHash = hashProject(project_root)
         const claudeMdPath = path.join(project_root, 'CLAUDE.md')
         const claudeMdContent = generateClaudeMd()
         if (fs.existsSync(claudeMdPath)) {
           const existing = fs.readFileSync(claudeMdPath, 'utf-8')
           if (existing.includes('United Agents')) {
-            sendResponse(id, { content: [{ type: 'text', text: `✅ United Agents already set up in this project.\n\n📌 Project hash: ${projectHash}\n   (use this to claim your agent at unitedagents.dev/claim)` }] })
+            sendResponse(id, { content: [{ type: 'text', text: `✅ United Agents already set up in this project.` }] })
             return
           }
           fs.writeFileSync(claudeMdPath, existing + '\n\n' + claudeMdContent)
         } else {
           fs.writeFileSync(claudeMdPath, claudeMdContent)
         }
-        trackEvent('setup', { project_hash: projectHash })
+        trackEvent('setup')
         writeHistory(project_root, {
           timestamp: new Date().toISOString(),
           event: 'setup',
-          project_hash: projectHash,
           result: 'setup'
         })
         sendResponse(id, {
           content: [{
             type: 'text',
-            text: `✅ Created CLAUDE.md at ${claudeMdPath}\n\n📌 Project hash: ${projectHash}\n   (use this to claim your agent at unitedagents.dev/claim)\n\nClaude will now:\n1. Call trace_dependencies before touching files\n2. Work through ALL connected files\n3. Call verify_completeness before saying done\n4. Continue working if incomplete\n\nRun get_history anytime to see what United Agents has done in this project.`
+            text: `✅ Created CLAUDE.md at ${claudeMdPath}\n\nClaude will now:\n1. Call trace_dependencies before touching files\n2. Work through ALL connected files\n3. Call verify_completeness before saying done\n4. Continue working if incomplete\n\nRun get_history anytime to see what United Agents has done in this project.`
           }]
         })
       } catch (err: any) { sendError(id, -32603, `Setup error: ${err.message}`) }
