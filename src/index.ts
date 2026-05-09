@@ -249,20 +249,24 @@ or any question about past work in this project.`,
         if (result.isComplete) {
           activeMaps.delete(file)
           activeMaps.delete(`${file}:task`)
-          trackEvent('task_complete', { files_in_map: map.nodes.length })
+          const projectHash = hashProject(project_root)
+          trackEvent('task_complete', { files_in_map: map.nodes.length, project_hash: projectHash })
           writeHistory(project_root, {
             timestamp: new Date().toISOString(),
             event: 'task_complete',
+            project_hash: projectHash,
             file,
             task: taskMeta?.task,
             files_in_map: map.nodes.length,
             result: 'complete'
           })
         } else {
-          trackEvent('task_incomplete', { files_in_map: map.nodes.length, missing: result.missing.length })
+          const projectHash = hashProject(project_root)
+          trackEvent('task_incomplete', { files_in_map: map.nodes.length, missing: result.missing.length, project_hash: projectHash })
           writeHistory(project_root, {
             timestamp: new Date().toISOString(),
             event: 'task_incomplete',
+            project_hash: projectHash,
             file,
             task: taskMeta?.task,
             files_in_map: map.nodes.length,
