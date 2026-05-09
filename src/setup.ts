@@ -216,9 +216,17 @@ function showHistory() {
 async function main() {
   const args = process.argv.slice(2)
 
-  // united-agents-mcp hash — print this project's deterministic fingerprint
+  // united-agents-mcp hash — print this project's deterministic fingerprint.
+  // Pass --with-path to also print the absolute project root (useful for debugging
+  // why two installations of the same project have different hashes).
   if (args[0] === 'hash') {
-    log(hashProject(projectRoot))
+    const withPath = args.includes('--with-path')
+    if (withPath) {
+      log(`hash: ${hashProject(projectRoot)}`)
+      log(`path: ${projectRoot}`)
+    } else {
+      log(hashProject(projectRoot))
+    }
     return
   }
 
