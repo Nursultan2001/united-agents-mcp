@@ -1,0 +1,29 @@
+[
+  {
+    "timestamp": "2026-05-09T21:02:45.313Z",
+    "event": "task_complete",
+    "file": "setup.ts",
+    "task": "Add a hash output flag to the hash CLI subcommand (--with-path) that also shows the absolute project root",
+    "files_in_map": 1,
+    "result": "complete",
+    "project_hash": "7abaa4800d3b1c69"
+  },
+  {
+    "timestamp": "2026-05-09T21:03:34.150Z",
+    "event": "task_complete",
+    "file": "checker.ts",
+    "task": "Improve the INCOMPLETE error summary to also list the project hash so users can paste it directly into unitedagents.dev/claim",
+    "files_in_map": 1,
+    "result": "complete",
+    "project_hash": "7abaa4800d3b1c69"
+  },
+  {
+    "timestamp": "2026-05-09T21:04:41.750Z",
+    "event": "task_complete",
+    "file": "index.ts",
+    "task": "Append the project hash to the verify_completeness COMPLETE response so users see it after every successful task \u2014 makes claiming the agent on unitedagents.dev trivial",
+    "files_in_map": 1,
+    "result": "complete",
+    "project_hash": "7abaa4800d3b1c69"
+  }
+]
